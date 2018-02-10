@@ -1,0 +1,192 @@
+---
+
+#--- General ---#
+
+- name: Adicionando Motd
+  template: src=motd dest=/etc/motd force=yes
+
+- name: Acertando source.list
+  copy: src=sources.list dest=/etc/apt/sources.list
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Copiando .profile para /etc/skel
+  copy: src=.profile dest=/etc/skel/.profile 
+
+- name: Configurando /etc/profile
+  lineinfile: dest=/etc/profile line={{ item }}
+  with_items:
+    - '#--- Default export & Alias ---#'
+    - 'export HISTTIMEFORMAT="%d/%m/%Y - %H:%M:%S - "'
+    - 'export HISTSIZE="5000"'
+    - 'export HISTFILESIZE="5000"'
+    - 'export TERM=linux'
+    - 'alias ls="ls -lh --color"'
+    - 'alias grep="grep --color"'
+    - 'alias vi="vim"'
+    - 'alias rm="rm -i"'
+
+#--- Packages Update/Upgrade ---#
+
+#--- Debian like
+
+- name: Atualizando repositorios
+  apt: update_cache=yes
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Instalando pacotes
+  apt: name={{ item }} state=latest install_recommends=yes update_cache=yes
+  with_items:
+    - "{{ common_packages_debian }}"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Fazendo distupgrade
+  apt: upgrade=dist
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+#--- Red Hat like
+
+- name: Install epel-repository
+  yum: name=epel-release state=latest
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Update System
+  yum: name=* state=latest update_cache=yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Install common packages
+  yum: name={{item}} state=latest
+  with_items:
+    - "{{ common_packages_redhat }}"
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Remove Firewalld
+  yum: name=firewalld state=absent
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+#--- Configurando vim ---#
+
+- name: Setando vim
+  action: shell update-alternatives --set editor /usr/bin/vim.basic
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Configurando vimrc
+  lineinfile:
+    dest=/etc/vim/vimrc
+    regexp='"syntax on"'
+    line='syntax on'
+    state=present
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Configurando vimrc
+  lineinfile:
+    dest=/etc/vimrc
+    regexp='"syntax on"'
+    line='syntax on'
+    state=present
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Copiando .vimrc default
+  copy: src={{ item.src}} dest={{item.dest}}
+  with_items:
+          - { src: '.vimrc', dest: '/root/.vimrc' }
+          - { src: '.vimrc', dest: '/etc/skel/.vimrc' }
+
+#--- Locale Settings ---#
+
+- locale_gen:
+    name: pt_BR.UTF-8
+    state: present
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Configurando locale
+  command: update-locale LANG={{ locale }} LC_ALL={{ locale }}
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Configurando localtime
+  file: src=/usr/share/zoneinfo/{{ timezone }} dest=/etc/localtime state=link force=yes
+
+- name: Configurando timezone
+  copy: src=timezone dest=/etc/timezone force=yes
+  notify: update tzdata
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+#--- Services ---#
+
+- name: Configurando ntp.conf
+  lineinfile:
+    dest=/etc/ntp.conf
+    state=present
+    regexp={{ item.regexp }}
+    line={{ item.line }}
+  with_items:
+    - { regexp: 'pool 0.ubuntu.pool.ntp.org iburst', line: 'a.ntp.br' }
+    - { regexp: 'pool 1.ubuntu.pool.ntp.org iburst', line: 'b.ntp.br' }
+    - { regexp: 'pool 2.ubuntu.pool.ntp.org iburst', line: 'c.ntp.br' }
+    - { regexp: 'pool 3.ubuntu.pool.ntp.org iburst', line: 'a.st1.ntp.br' }
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Configurando ntp.conf
+  lineinfile:
+    dest=/etc/ntp.conf
+    state=present
+    regexp={{ item.regexp }}
+    line={{ item.line }}
+  with_items:
+    - { regexp: 'server 0.centos.poll.ntp.org iburst', line: 'a.ntp.br' }
+    - { regexp: 'server 1.centos.poll.ntp.org iburst', line: 'b.ntp.br' }
+    - { regexp: 'server 2.centos.poll.ntp.org iburst', line: 'c.ntp.br' }
+    - { regexp: 'server 3.centos.poll.ntp.org iburst', line: 'a.st1.ntp.br' }
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Reiniciando NTP service
+  systemd: name=ntpd state=restarted enabled=yes
+
+- name: Configurando SSH
+  lineinfile:
+    dest=/etc/ssh/sshd_config
+    state=present
+    regexp={{ item.regexp }}
+    line={{ item.line }}
+  with_items:
+    - { regexp: '#Port 22', line: 'Port 22' }
+    - { regexp: '#PermitRootLogin prohibit-password', line: 'PermitRootLogin without-password' }
+    - { regexp: '#Banner none', line: 'Banner /etc/ssh/banner_ssh' }
+    - { regexp: '#StrictModes yes', line: 'StrictModes yes' }
+
+- name: Configurando protocolo versao 2 SSH
+  lineinfile:
+          dest=/etc/ssh/sshd_config
+          state=absent
+          regexp='Protocol 2'
+
+- name: Copiando banner_ssh
+  copy: src=banner_ssh dest=/etc/ssh/banner_ssh 
+
+- name: Criando chaves SSH
+  command: ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ''
+  args:
+          creates: /root/.ssh/id_rsa
+
+- name: Configurando authorized_keys
+  copy: src=authorized_keys dest=/root/.ssh/authorized_keys owner=root group=root mode=u=rw
+
+- name: Reiniciando SSH
+  systemd: name=sshd state=restarted enabled=yes
+
+#--- Manage users ---#
+
+- name: Adicionando usuario phconsultoria
+  user:
+    name=phconsultoria
+    comment="PH Consultoria"
+    shell=/bin/bash
+    home=/home/phconsultoria
+    password={{ root_pass_sha256 }}
+
+- name: Alterando senha de root
+  user: name=root update_password=always password={{ root_pass_sha256 }}
+
+- name: Adicionar usuario phconsultoria no sudo
+  lineinfile:
+          dest=/etc/sudoers
+          line='phconsultoria    ALL=(ALL:ALL) ALL'

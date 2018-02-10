@@ -1,0 +1,127 @@
+- name: Instalando pacotes (Nagios)
+  yum: name={{ item }} state=latest update_cache=yes
+  with_items:
+    - "{{ redhat_nagios_packages }}"
+  when: ansible_distribution == 'CentOS'
+
+- name: Instalando pacotes (Nagios)
+  apt: name={{ item }} state=latest update_cache=yes
+  with_items:
+    - "{{ debian_nagios_packages }}"
+  when: ansible_distribution == 'Debian'
+
+- name: Adicionando group nagcmd
+  group: name=nagcmd state=present
+
+- name: Adicionando usuario nagios
+  user: name=nagios groups=nagcmd append=yes
+
+- name: Configurando /etc/services
+  lineinfile: dest=/etc/services line="nrpe 5666/tcp"
+
+- name: Download dos arquivos do Nagios
+  get_url: url={{item.url}}  dest=/opt/ validate_certs=no
+  with_items: 
+    - { url: "https://ufpr.dl.sourceforge.net/project/nagios/nagios-4.x/nagios-4.3.4/nagios-4.3.4.tar.gz" }
+    - { url: "https://nagios-plugins.org/download/nagios-plugins-2.2.1.tar.gz" }
+
+- name: Descompactando arquivos do Nagios
+  shell: tar zxf /opt/nagios-4.3.4.tar.gz -C /opt && tar zxf /opt/nagios-plugins-2.2.1.tar.gz -C /opt
+
+- name: Preparando Nagios Core
+  shell: ./configure --with-nagios-group=nagios --with-command-group=nagcmd
+  args: 
+    chdir: /opt/nagios-4.3.4
+
+- name: Compilando Nagios Core
+  make: chdir=/opt/nagios-4.3.4 target={{item}}
+  with_items:
+    - all
+    - install
+    - install-init
+    - install-config
+    - install-commandmode
+    - install-webconf
+
+- name: Copiando arquivos
+  shell: cp -R /opt/nagios-4.3.4/contrib/eventhandlers/ /usr/local/nagios/libexec
+
+- name: Configurando permissoes
+  file:
+      path: /usr/local/nagios
+      owner: nagios
+      group: nagios
+
+- name: Copiando credenciais de acesso
+  copy : src=htpasswd.users dest=/usr/local/nagios/etc mode=0644 owner=nagios group=nagios
+
+- name: Preparando plugins do Nagios
+  shell: ./configure --with-nagios-user=nagios --with-nagios-group=nagcmd
+  args: 
+    chdir: /opt/nagios-plugins-2.2.1
+
+- name: Compilando plugins do Nagios
+  make: chdir=/opt/nagios-plugins-2.2.1 target={{item}}
+  with_items:
+    - install
+
+- name: Removendo arquivos fonte
+  file: path=/opt/* state=absent
+
+- name: Criando diretorios nagios
+  file:
+      path={{item}}
+      state=directory
+      mode=0775
+      owner=nagios
+      group=nagios
+  with_items:
+      - /usr/loca/nagios/etc/objects/servers
+      - /usr/loca/nagios/etc/objects/templates
+
+#--- Copy items ---#
+
+- name: Copiando plugins check_cpu
+  copy : src=check_cpu dest=/usr/local/nagios/libexec mode=0755 owner=nagios group=nagios
+  
+- name: Copiando plugins check_mem
+  copy : src=check_mem dest=/usr/local/nagios/libexec mode=0755 owner=nagios group=nagios
+  
+- name: Copiando cgi.cfg
+  copy : src=cgi.cfg dest=/usr/local/nagios/etc mode=0664 owner=nagios group=nagios force=yes
+
+- name: Copiando nagios.cfg
+  copy : src=nagios.cfg dest=/usr/local/nagios/etc mode=0664 owner=nagios group=nagios force=yes
+
+- name: Copiando resource.cfg
+  copy : src=resource.cfg dest=/usr/local/nagios/etc mode=0664 owner=nagios group=nagios force=yes
+  
+- name: Copiando commands.cfg
+  copy : src=commands.cfg dest=/usr/local/nagios/etc/objects mode=0664 owner=nagios group=nagios force=yes
+      
+- name: Copiando contacts.cfg
+  copy : src=contacts.cfg dest=/usr/local/nagios/etc/objects mode=0664 owner=nagios group=nagios force=yes
+      
+- name: Copiando templates.cfg
+  copy : src=templates.cfg dest=/usr/local/nagios/etc/objects mode=0664 owner=nagios group=nagios force=yes
+      
+- name: Copiando timeperiods.cfg
+  copy : src=timeperiods.cfg dest=/usr/local/nagios/etc/objects mode=0664 owner=nagios group=nagios force=yes
+  
+- name: Copiando arquivos (servers)
+  copy : src=localhost.cfg dest=/usr/local/nagios/etc/objects/servers/ mode=0664 owner=nagios group=nagios force=yes
+  
+- name: Copiando templates (printer)
+  copy : src=printer.cfg dest=/usr/local/nagios/etc/objects/templates/ mode=0664 owner=nagios group=nagios force=yes
+
+- name: Copiando templates (switch)
+  copy : src=switch.cfg dest=/usr/local/nagios/etc/objects/templates/ mode=0664 owner=nagios group=nagios force=yes
+
+- name: Copiando templates (windows)
+  copy : src=windows.cfg dest=/usr/local/nagios/etc/objects/templates/ mode=0664 owner=nagios group=nagios force=yes
+
+- name: Reiniciando  e configurando servicos
+  service: state=restarted name={{item}} enabled=yes
+  with_items:
+      - httpd
+      - nagios

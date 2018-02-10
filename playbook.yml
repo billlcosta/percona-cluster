@@ -1,0 +1,10 @@
+- name: Comecando instalacao
+  hosts: all
+  remote_user: root
+  roles: 
+  #- common
+  #- nrpe
+  #- pbis
+  #- poller
+  #- maldet
+  - percona-cluster

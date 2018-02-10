@@ -1,0 +1,11 @@
+========================================
+              PH Consultoria
+
+ Contato    : suporte@phconsultoria.com.br
+ Website    : www.phconsultoria.com.br
+
+ Servidor   : {{ ansible_hostname }} 
+ Sistema    : {{ ansible_distribution }} - {{ ansible_distribution_version }}
+ Codenome   : {{ ansible_distribution_release }} 
+
+========================================
