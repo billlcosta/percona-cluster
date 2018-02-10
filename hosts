@@ -1,2 +1,4 @@
 [hosts]
-127.0.0.1 ansible_ssh_port=22 ansible_ssh_user=ph
+10.12.3.17 ansible_ssh_port=22 ansible_ssh_user=ph
+10.12.4.13 ansible_ssh_port=22 ansible_ssh_user=ph
+10.12.4.22 ansible_ssh_port=22 ansible_ssh_user=ph

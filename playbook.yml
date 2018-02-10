@@ -2,10 +2,4 @@
   hosts: all
   remote_user: root
   roles: 
-  #- common
-  #- pbis
-  #- maldet
-  #- percona-cluster
-  #- bacula
-  #- nagios-server
-  #- nagios-client
+  - percona-cluster
