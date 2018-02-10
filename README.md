@@ -1,5 +1,5 @@
-                                                        Scripts Ansible.
-                                              ------------------------------------
+                                         Automatização Cluster SQL Percona
+                                 ---------------------------------------------------
                                               
 Script desenvolvido para automatizar a criação de um cluster SQL com Percona + Galera/XtraDB e Keepalived, utilizando três servidores. Para utilizar, siga os passos abaixo.:
 
