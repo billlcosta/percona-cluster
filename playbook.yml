@@ -3,8 +3,9 @@
   remote_user: root
   roles: 
   #- common
-  #- nrpe
   #- pbis
-  #- poller
   #- maldet
-  - percona-cluster
+  #- percona-cluster
+  #- bacula
+  #- nagios-server
+  #- nagios-client
